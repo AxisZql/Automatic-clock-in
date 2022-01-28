@@ -1,0 +1,325 @@
+from random import uniform
+import time
+from lxml import etree
+from utils.rsa import strEnc
+import re
+import json
+
+
+# 登陆数据处理
+def get_login_form(res_text, username, password):
+    selector = etree.HTML(res_text)
+    rsa = username + password + \
+        selector.xpath('//div[@class="login-tab-details"]/input[4]/@value')[0]
+    rsa = strEnc(rsa)
+    form_data = {
+        'rsa': rsa,
+        'ul': len(username),
+        'pl': len(password),
+        'lt': selector.xpath('//div[@class="login-tab-details"]/input[4]/@value')[0],
+        'execution': selector.xpath('//div[@class="login-tab-details"]/input[5]/@value')[0],
+        '_eventId': 'submit',
+    }
+    return form_data
+
+
+def get_listNextStepsUsers_form(client, headers, dk_url):
+
+    resp = client.get(url=dk_url, headers=headers)
+    selector = etree.HTML(resp.content)
+    before_form = {
+        'stepId': int(re.findall(r'formStepId = (.*?);', str(resp.content))[0]),
+        'instanceId': '',
+        'admin': False,
+        'rand': uniform(0, 999),
+        'width': 960,
+        'lang': 'zh',
+        'csrfToken': selector.xpath("//meta[@itemscope='csrfToken']/@content")[0],
+    }
+
+    url = 'https://yqtb.gzhu.edu.cn/infoplus/interface/render'
+    resp = client.post(url=url, headers=headers, data=before_form)
+    resp = json.loads(resp.text)
+    data = resp.get('entities')[0].get('data') # 获取表单填充数据
+
+    req = {
+        'stepId': before_form['stepId'],
+        'includingTop': 'true',
+        'csrfToken': before_form["csrfToken"],
+        'lang': 'zh',
+    }
+    # 抓包时发现打卡前提交数据的一个接口，具体作用没有研究
+    client.get(url='https://yqtb.gzhu.edu.cn/infoplus/alive', headers=headers)
+    _url = 'https://yqtb.gzhu.edu.cn/infoplus/interface/instance/85dcadbb-2c07-4206-b0bb-f4f710325ba2/progress'
+    client.post(url=_url, headers=headers, data=req)
+
+    '''
+    "fieldJBXXdrsfwc": '2', #当日是否外出
+    "fieldYQJLsfjcqtbl": "2",#是否接触过半个月内有疫情重点地区旅居史的人员
+    "fieldJKMsfwlm": "1",# 健康码是否为绿码
+    "fieldCXXXsftjhb": "2",#半个月内是否到过国内疫情重点地区
+    "fieldCNS": 'true', #确定按钮
+    '''
+    form = {
+        'stepId': int(before_form['stepId']),
+        'actionId': 1,
+        'formData':
+            {
+            "_VAR_EXECUTE_INDEP_ORGANIZE_Name": data.get('_VAR_EXECUTE_INDEP_ORGANIZE_Name', ''),
+            "_VAR_ACTION_REALNAME": data.get('_VAR_ACTION_REALNAME', ''),
+            "_VAR_EXECUTE_ORGANIZES_Names": data.get('_VAR_EXECUTE_ORGANIZES_Names', ''),
+            "_VAR_RELEASE": data.get('_VAR_RELEASE', ''),
+            "_VAR_NOW_MONTH": data.get('_VAR_NOW_MONTH', ''),
+            "_VAR_ACTION_USERCODES": data.get('_VAR_ACTION_USERCODES', ''),
+            "_VAR_ACTION_ACCOUNT": data.get('_VAR_ACTION_ACCOUNT', ''),
+            "_VAR_ACTION_ORGANIZES_Names": data.get('_VAR_ACTION_ORGANIZES_Names', ''),
+            "_VAR_EXECUTE_ORGANIZES_Codes": data.get('_VAR_EXECUTE_ORGANIZES_Codes', ''),
+            "_VAR_URL_Attr": "{}",
+            "_VAR_EXECUTE_INDEP_ORGANIZES_Names": data.get('_VAR_EXECUTE_INDEP_ORGANIZES_Names', ''),
+            "_VAR_POSITIONS": data.get('_VAR_POSITIONS', ''),
+            "_VAR_EXECUTE_INDEP_ORGANIZES_Codes": data.get('_VAR_EXECUTE_INDEP_ORGANIZES_Codes', ''),
+            "_VAR_ACTION_ORGANIZES_Codes": data.get('_VAR_ACTION_ORGANIZES_Codes', ''),
+            "_VAR_EXECUTE_INDEP_ORGANIZE": data.get('_VAR_EXECUTE_INDEP_ORGANIZE', ''),
+            "_VAR_NOW_YEAR": data.get('_VAR_NOW_YEAR', ''),
+            "_VAR_ACTION_INDEP_ORGANIZES_Codes": data.get('_VAR_ACTION_INDEP_ORGANIZES_Codes', ''),
+            "_VAR_ACTION_ORGANIZE": data.get('_VAR_ACTION_ORGANIZE', ''),
+            "_VAR_EXECUTE_ORGANIZE": data.get('_VAR_EXECUTE_ORGANIZE', ''),
+            "_VAR_ACTION_INDEP_ORGANIZE": data.get('_VAR_ACTION_INDEP_ORGANIZE', ''),
+            "_VAR_ACTION_INDEP_ORGANIZE_Name": data.get('_VAR_ACTION_INDEP_ORGANIZE_Name', ''),
+            "_VAR_ACTION_ORGANIZE_Name": data.get('_VAR_ACTION_ORGANIZE_Name', ''),
+            "_VAR_OWNER_ORGANIZES_Codes": data.get('_VAR_OWNER_ORGANIZES_Codes', ''),
+            "_VAR_ADDR": data.get('_VAR_ADDR', ''),
+            "_VAR_OWNER_ORGANIZES_Names": data.get('_VAR_OWNER_ORGANIZES_Names', ''),
+            "_VAR_URL": "https://yqtb.gzhu.edu.cn/infoplus/form/"+str(before_form['stepId'])+"/render",
+            "_VAR_EXECUTE_ORGANIZE_Name": data.get('_VAR_EXECUTE_ORGANIZE_Name'),
+            "_VAR_ACTION_INDEP_ORGANIZES_Names": data.get('_VAR_ACTION_INDEP_ORGANIZES_Names'),
+            "_VAR_OWNER_ACCOUNT": data.get('_VAR_OWNER_ACCOUNT'),
+            "_VAR_STEP_CODE": data.get('_VAR_STEP_CODE'),
+            "_VAR_OWNER_USERCODES": data.get('_VAR_OWNER_USERCODES'),
+            "_VAR_NOW_DAY": data.get('_VAR_NOW_DAY'),
+            "_VAR_OWNER_REALNAME": data.get('_VAR_OWNER_REALNAME'),
+            "_VAR_ENTRY_TAGS": "疫情应用,移动端",
+            "_VAR_NOW": data.get('_VAR_NOW'),  # attention
+            "_VAR_ENTRY_NUMBER": data.get('_VAR_ENTRY_NUMBER'),
+            "_VAR_ENTRY_NAME": "学生健康状况申报_",
+            "_VAR_STEP_NUMBER": data.get('_VAR_STEP_NUMBER'),
+            "fieldFLid": data.get('fieldFLid'),
+            "fieldHQRQ": "",
+            "fieldDQSJ": int(str(time.time()).split('.')[0]),
+            "fieldSQSJ": int(str(time.time()).split('.')[0]),
+            "fieldJBXXxm": data.get('fieldJBXXxm'),
+            "fieldJBXXxm_Name": data.get('fieldJBXXxm_Name'),
+            "fieldJBXXgh": data.get('fieldJBXXgh'),
+            "fieldJBXXnj": data.get('fieldJBXXnj'),
+            "fieldJBXXbj": data.get('fieldJBXXbj'),
+            "fieldJBXXxb": data.get('fieldJBXXxb'),
+            "fieldJBXXxb_Name": data.get('fieldJBXXxb'),
+            "fieldJBXXlxfs": data.get('fieldJBXXlxfs'),
+            "fieldJBXXcsny": data.get('fieldJBXXcsny', ''),
+            "fieldJBXXdw": data.get('fieldJBXXdw'),
+            "fieldJBXXdw_Name": data.get('fieldJBXXdw_Name', ''),
+            "fieldJBXXbz": data.get('fieldJBXXbz', ''),
+            "fieldJBXXbz_Name": data.get('fieldJBXXbz_Name', ''),
+            "fieldJBXXbz_Attr": json.dumps({"_parent": data.get('fieldJBXXbj', '')}),
+            "fieldJBXXfdy": data.get('fieldJBXXfdy', ''),
+            "fieldJBXXfdy_Name": data.get('fieldJBXXfdy_Name', ''),
+            "fieldJBXXfdy_Attr": f'{{"_parent":"{data.get("fieldJBXXdw", "")}:*"}}',
+            "fieldjgs": data.get('fieldjgs', ''),
+            "fieldjgs_Name": data.get('fieldjgs_Name', ''),
+            "fieldjgshi": data.get('fieldjgshi', ''),
+            "fieldjgshi_Name": data.get('fieldjgshi_Name', ''),
+            "fieldjgshi_Attr": f'{{"_parent":"{data.get("fieldjgs", "")}"}}',
+            "fieldJBXXxnjzbgdz": data.get('fieldJBXXxnjzbgdz', ''),
+            "fieldJBXXJG": data.get('fieldJBXXJG', ''),
+            "fieldJBXXjgs": data.get('fieldJBXXjgs', ''),
+            "fieldJBXXjgs_Name": data.get('fieldJBXXjgs_Name', ''),
+            "fieldJBXXjgshi": data.get('fieldJBXXjgshi', ''),
+            "fieldJBXXjgshi_Name": data.get('fieldJBXXjgshi_Name', ''),
+            "fieldJBXXjgshi_Attr": f'{{"_parent":"{data.get("fieldJBXXjgs", "")}"}}',
+            "fieldJBXXjgq": data.get('fieldJBXXjgq', ''),  # ------------------
+            "fieldJBXXjgq_Name": data.get('fieldJBXXjgq_Name', ''),
+            "fieldJBXXjgq_Attr": f'{{"_parent":"{data.get("fieldJBXXjgshi", "")}"}}',
+            "fieldJBXXjgsjtdz": data.get('fieldJBXXjgsjtdz', ''),
+            "fieldJBXXdrsfwc": '2',  # 当日是否外出
+            "fieldJBXXsheng": data.get('fieldJBXXsheng', ''),
+            "fieldJBXXsheng_Name": data.get('fieldJBXXsheng_Name', ''),
+            "fieldJBXXshi": data.get('fieldJBXXshi', ''),
+            "fieldJBXXshi_Name": data.get('fieldJBXXshi_Name', ''),
+            "fieldJBXXshi_Attr": "{\"_parent\":\"\"}",
+            "fieldJBXXqu": data.get('fieldJBXXqu', ''),
+            "fieldJBXXqu_Name": data.get('fieldJBXXqu_Name', ''),
+            "fieldJBXXqu_Attr": "{\"_parent\":\"\"}",
+            "fieldJBXXqjtxxqk": data.get('fieldJBXXqjtxxqk', ''),
+            "fieldSTQKbrstzk1": data.get('fieldSTQKbrstzk1', ''),
+            "fieldSTQKfs": bool(data.get('fieldSTQKfs', '')),
+            "fieldSTQKks": bool(data.get('fieldSTQKks', '')),
+            "fieldSTQKxm": bool(data.get('fieldSTQKxm', '')),
+            "fieldSTQKfl": bool(data.get('fieldSTQKfl', '')),
+            "fieldSTQKhxkn": bool(data.get('fieldSTQKhxkn', '')),
+            "fieldSTQKfx": bool(data.get('fieldSTQKfx', '')),
+            "fieldSTQKlt": bool(data.get('fieldSTQKlt', '')),
+            "fieldSTQKxjwjjt": bool(data.get('fieldSTQKxjwjjt', '')),
+            "fieldSTQKfxx": bool(data.get('fieldSTQKfxx', '')),
+            "fieldSTQKjmy": bool(data.get('fieldSTQKjmy', '')),
+            "fieldSTQKqt": bool(data.get('fieldSTQKqt', '')),
+            "fieldSTQKqtms": data.get('fieldSTQKqtms', ''),
+            "fieldZJYCHSJCYXJGRQzd": data.get('fieldZJYCHSJCYXJGRQzd', ''),
+            "fieldSTQKfrtw": data.get('fieldSTQKfrtw', ''),
+            "fieldSTQKfrsj": data.get('fieldSTQKfrsj', ''),
+            "fieldSTQKclfs": data.get('fieldSTQKclfs', ''),
+            "fieldSTQKzd": data.get('fieldSTQKzd', ''),
+            "fieldSTQKbrstzk": data.get('fieldSTQKbrstzk', ''),
+            "fieldSTQKglfs": data.get('fieldSTQKglfs', ''),
+            "fieldSTQKgldd": data.get('fieldSTQKgldd', ''),
+            "fieldSTQKglkssj": data.get('fieldSTQKglkssj', ''),
+            "fieldSTQKxgqksm": data.get('fieldSTQKxgqksm', ''),
+            "fieldSTQKzdjgmc": data.get('fieldSTQKzdjgmc', ''),
+            "fieldSTQKzdmc": data.get('fieldSTQKzdmc', ''),
+            "fieldSTQKzdkssj": data.get('fieldSTQKzdkssj', ''),
+            "fieldSTQKzljgmc": data.get('fieldSTQKzljgmc', ''),
+            "fieldSTQKzysj": data.get('fieldSTQKzysj', ''),
+            "fieldSTQKzdjgmcc": data.get('fieldSTQKzdjgmcc', ''),
+            "fieldSTQKpcsj": data.get('fieldSTQKpcsj', ''),
+            "fieldSTQKjtcystzk1": data.get('fieldSTQKjtcystzk1', ''),
+            "fieldSTQKjtcyfs": bool(data.get('fieldSTQKjtcyfs', '')),
+            "fieldSTQKjtcyks": bool(data.get('fieldSTQKjtcyks', '')),
+            "fieldSTQKjtcyxm": bool(data.get('fieldSTQKjtcyxm', '')),
+            "fieldSTQKjtcyfl": bool(data.get('fieldSTQKjtcyfl', '')),
+            "fieldSTQKjtcyhxkn": bool(data.get('fieldSTQKjtcyhxkn', '')),
+            "fieldSTQKjtcyfx": bool(data.get('fieldSTQKjtcyfx', '')),
+            "fieldSTQKjtcylt": bool(data.get('fieldSTQKjtcylt', '')),
+            "fieldSTQKjtcyxjwjjt": bool(data.get('fieldSTQKjtcyxjwjjt', '')),
+            "fieldSTQKjtcyfxx": bool(data.get('fieldSTQKjtcyfxx', '')),
+            "fieldSTQKjtcyjmy": bool(data.get('fieldSTQKjtcyjmy', '')),
+            "fieldSTQKjtcyqt": bool(data.get('fieldSTQKjtcyqt', '')),
+            "fieldSTQKjtcyqtms": "",
+            "fieldSTQKjtcyfrtw": "",
+            "fieldSTQKjtcyfrsj": "",
+            "fieldSTQKjtcyclfs": "",
+            "fieldSTQKjtcyzd": "",
+            "fieldSTQKjtcystzk": "6",
+            "fieldSTQKjtcyglfs": "",
+            "fieldSTQKjtcygldd": "",
+            "fieldSTQKjtcyglkssj": "",
+            "fieldSTQKjtcyzdjgmc": "",
+            "fieldSTQKjtcyzdmc": "",
+            "fieldSTQKjtcyzdkssj": "",
+            "fieldSTQKjtcyzljgmc": "",
+            "fieldSTQKjtcyzysj": "",
+            "fieldSTQKjtcyzdjgmcc": "",
+            "fieldSTQKjtcypcsj": "",
+            "fieldSTQKrytsqkqsm": "",
+            "fieldCXXXszsqsfyyshqzbl": "2",
+            "fieldCXXXqjymsxgqk": "",
+            "fieldCXXXsfjcgyshqzbl": "2",
+            "fieldCXXXksjcsj": "",
+            "fieldCXXXzhycjcsj": "",
+            "fieldJCDDs": "",
+            "fieldJCDDs_Name": "",
+            "fieldJCDDshi": "",
+            "fieldJCDDshi_Name": "",
+            "fieldJCDDshi_Attr": "{\"_parent\":\"\"}",
+            "fieldJCDDq": "",
+            "fieldJCDDq_Name": "",
+            "fieldJCDDq_Attr": "{\"_parent\":\"\"}",
+            "fieldJCDDqmsjtdd": "",
+            "fieldCXXXjcdr": "",
+            "fieldCXXXjcdqk": "",
+            "fieldYQJLsfjcqtbl": "2",  # 是否接触过半个月内有疫情重点地区旅居史的人员
+            "fieldYQJLksjcsj": "",
+            "fieldYQJLzhycjcsj": "",
+            "fieldYQJLjcdry": "",
+            "fieldYQJLjcdds": "",
+            "fieldYQJLjcdds_Name": "",
+            "fieldYQJLjcddshi": "",
+            "fieldYQJLjcddshi_Name": "",
+            "fieldYQJLjcddshi_Attr": "{\"_parent\":\"\"}",
+            "fieldYQJLjcddq": "",
+            "fieldYQJLjcddq_Name": "",
+            "fieldYQJLjcddq_Attr": "{\"_parent\":\"\"}",
+            "fieldYQJLjcdryjkqk": "",
+            "fieldqjymsjtqk": "",
+            "fieldJKMsfwlm": "1",  # 健康码是否为绿码
+            "fieldJKMjt": "",
+            "fieldCXXXsftjhb": "2",  # 半个月内是否到过国内疫情重点地区
+            "fieldCXXXsftjhbjtdz": "",
+            "fieldCXXXsftjhbjtdz_Name": "",
+            "fieldCXXXsftjhbs": "",
+            "fieldCXXXsftjhbs_Name": "",
+            "fieldCXXXsftjhbs_Attr": "{\"_parent\":\"\"}",
+            "fieldCXXXsftjhbq": "",
+            "fieldCXXXsftjhbq_Name": "",
+            "fieldCXXXsftjhbq_Attr": "{\"_parent\":\"\"}",
+            "fieldCXXXddsj": "",
+            "fieldCXXXsfylk": "",
+            "fieldCXXXlksj": "",
+            "fieldSFJZYM": "1",
+            "fieldJZDZC": "3",
+            "fieldYMJZRQzd": data.get('fieldYMJZRQzd', ''),
+            "fieldYMTGSzd": "1",
+            "fieldYMTGSzd_Name": "生物",
+            "fieldYMTGSzdqt": "",
+            "fieldSFJZYMyczd": "",
+            "fieldCNS": True,  # 确认按钮
+            "fieldJKHDDzt": "1",
+            "fieldJKHDDzt_Name": "健康",
+            "fieldzgzjzdzq": "",
+            "fieldzgzjzdzq_Name": "",
+            "fieldzgzjzdzq_Attr": "{\"_parent\":\"\"}",
+            "fieldzgzjzdzjtdz": "",
+            "fieldzgzjzdzshi": "",
+            "fieldzgzjzdzshi_Name": "",
+            "fieldzgzjzdzshi_Attr": "{\"_parent\":\"\"}",
+            "fieldzgzjzdzs": "",
+            "fieldzgzjzdzs_Name": "",
+            "fieldCXXXcxzt": "",
+            "fieldCXXXjtgjbc": "",
+            "fieldCXXXjtfsqtms": "",
+            "fieldCXXXjtfsqt": bool(data.get('fieldCXXXjtfsqt', '')),
+            "fieldCXXXjtfslc": bool(data.get('fieldCXXXjtfslc', '')),
+            "fieldCXXXjtfspc": bool(data.get('fieldCXXXjtfspc', '')),
+            "fieldCXXXjtfsdb": bool(data.get('fieldCXXXjtfsdb', '')),
+            "fieldCXXXjtfshc": bool(data.get('fieldCXXXjtfshc', '')),
+            "fieldCXXXjtfsfj": bool(data.get('fieldCXXXjtfsfj', '')),
+            "fieldCXXXfxcfsj": "",
+            "fieldCXXXcqwdq": "",
+            "fieldCXXXdqszd": "",
+            "fieldCXXXssh": "",
+            "fieldCXXXfxxq": "",
+            "fieldCXXXfxxq_Name": "",
+            "fieldCXXXjtjtzz": "",
+            "fieldCXXXjtzzq": "",
+            "fieldCXXXjtzzq_Name": "",
+            "fieldCXXXjtzzs": "",
+            "fieldCXXXjtzzs_Name": "",
+            "fieldCXXXjtzz": "",
+            "fieldCXXXjtzz_Name": "",
+            "fieldSTQKqtqksm": "",
+            "fieldSHENGYC": data.get('fieldSHENGYC', ''),
+            "fieldYCFDY": data.get('fieldYCFDY', ''),
+            "fieldYCBZ": data.get('fieldYCBZ', ''),
+            "fieldYCBJ": "",
+            "fieldLYYZM": data.get('fieldLYYZM', '')
+        },
+        'timestamp': int(str(time.time()).split('.')[0]),
+        'rand': uniform(0, 999),
+        'boundFields': 'fieldSTQKzdjgmc,fieldSTQKjtcyglkssj,fieldYMTGSzd,fieldCXXXsftjhb,fieldzgzjzdzjtdz,fieldJCDDqmsjtdd,fieldSHENGYC,fieldYQJLksjcsj,fieldSTQKjtcyzd,fieldJBXXjgsjtdz,fieldSTQKbrstzk,fieldSTQKfrtw,fieldSTQKjtcyqt,fieldCXXXjtfslc,fieldJBXXlxfs,fieldSTQKxgqksm,fieldSTQKpcsj,fieldJKMsfwlm,fieldJKHDDzt,fieldYQJLsfjcqtbl,fieldYQJLzhycjcsj,fieldSTQKfl,fieldSTQKhxkn,fieldJBXXbz,fieldCXXXsfylk,fieldFLid,fieldjgs,fieldSTQKglfs,fieldCXXXsfjcgyshqzbl,fieldSTQKjtcyfx,fieldCXXXszsqsfyyshqzbl,fieldJCDDshi,fieldSTQKrytsqkqsm,fieldJCDDs,fieldSTQKjtcyfs,fieldSTQKjtcyzljgmc,fieldSQSJ,fieldzgzjzdzs,fieldzgzjzdzq,fieldJZDZC,fieldJBXXnj,fieldSTQKjtcyzdkssj,fieldSTQKfx,fieldSTQKfs,fieldYQJLjcdry,fieldCXXXjtfsdb,fieldCXXXcxzt,fieldYQJLjcddshi,fieldCXXXjtjtzz,fieldCXXXsftjhbs,fieldHQRQ,fieldSTQKjtcyqtms,fieldCXXXksjcsj,fieldSTQKzdkssj,fieldSTQKfxx,fieldSTQKjtcyzysj,fieldjgshi,fieldSTQKjtcyxm,fieldJBXXsheng,fieldZJYCHSJCYXJGRQzd,fieldJBXXdrsfwc,fieldqjymsjtqk,fieldJBXXdw,fieldCXXXjcdr,fieldCXXXsftjhbjtdz,fieldJCDDq,fieldSFJZYM,fieldSTQKjtcyclfs,fieldSTQKxm,fieldCXXXjtgjbc,fieldSTQKjtcygldd,fieldzgzjzdzshi,fieldSTQKjtcyzdjgmcc,fieldSTQKzd,fieldSTQKqt,fieldCXXXlksj,fieldSTQKjtcyfrsj,fieldCXXXjtfsqtms,fieldSTQKjtcyzdmc,fieldCXXXjtfsfj,fieldJBXXfdy,fieldSTQKjtcyjmy,fieldJBXXxm,fieldJKMjt,fieldSTQKzljgmc,fieldCXXXzhycjcsj,fieldCXXXsftjhbq,fieldSTQKqtms,fieldYCFDY,fieldJBXXxb,fieldSTQKglkssj,fieldCXXXjtfspc,fieldSTQKbrstzk1,fieldYCBJ,fieldCXXXssh,fieldSTQKzysj,fieldLYYZM,fieldJBXXgh,fieldCNS,fieldCXXXfxxq,fieldSTQKclfs,fieldSTQKqtqksm,fieldCXXXqjymsxgqk,fieldYCBZ,fieldSTQKjmy,fieldSTQKjtcyxjwjjt,fieldJBXXxnjzbgdz,fieldSTQKjtcyfl,fieldSTQKjtcyzdjgmc,fieldCXXXddsj,fieldSTQKfrsj,fieldSTQKgldd,fieldCXXXfxcfsj,fieldJBXXbj,fieldSTQKjtcyfxx,fieldSTQKks,fieldJBXXcsny,fieldCXXXjtzzq,fieldJBXXJG,fieldCXXXdqszd,fieldCXXXjtzzs,fieldJBXXshi,fieldSTQKjtcyfrtw,fieldSTQKjtcystzk1,fieldCXXXjcdqk,fieldSTQKzdmc,fieldSFJZYMyczd,fieldSTQKjtcyks,fieldSTQKjtcystzk,fieldCXXXjtfshc,fieldYMTGSzdqt,fieldCXXXcqwdq,fieldSTQKxjwjjt,fieldSTQKjtcypcsj,fieldJBXXqu,fieldSTQKlt,fieldYMJZRQzd,fieldJBXXjgshi,fieldYQJLjcddq,fieldYQJLjcdryjkqk,fieldYQJLjcdds,fieldSTQKjtcyhxkn,fieldCXXXjtzz,fieldJBXXjgq,fieldCXXXjtfsqt,fieldJBXXjgs,fieldSTQKjtcylt,fieldSTQKzdjgmcc,fieldJBXXqjtxxqk,fieldDQSJ,fieldSTQKjtcyglfs',
+        'csrfToken': before_form['csrfToken'],
+        'lang': 'zh',
+
+    }
+
+    end_form = {
+        'actionId': 1,
+        'formData': form['formData'],
+        'remark': '',
+        'rand': uniform(0, 9999),
+        'nextUsers': {},
+        'stepId': before_form['stepId'],
+        'timestamp': int(str(time.time()).split('.')[0]),
+        'boundFields': 'fieldSTQKzdjgmc,fieldSTQKjtcyglkssj,fieldYMTGSzd,fieldCXXXsftjhb,fieldzgzjzdzjtdz,fieldJCDDqmsjtdd,fieldSHENGYC,fieldYQJLksjcsj,fieldSTQKjtcyzd,fieldJBXXjgsjtdz,fieldSTQKbrstzk,fieldSTQKfrtw,fieldSTQKjtcyqt,fieldCXXXjtfslc,fieldJBXXlxfs,fieldSTQKxgqksm,fieldSTQKpcsj,fieldJKMsfwlm,fieldJKHDDzt,fieldYQJLsfjcqtbl,fieldYQJLzhycjcsj,fieldSTQKfl,fieldSTQKhxkn,fieldJBXXbz,fieldCXXXsfylk,fieldFLid,fieldjgs,fieldSTQKglfs,fieldCXXXsfjcgyshqzbl,fieldSTQKjtcyfx,fieldCXXXszsqsfyyshqzbl,fieldJCDDshi,fieldSTQKrytsqkqsm,fieldJCDDs,fieldSTQKjtcyfs,fieldSTQKjtcyzljgmc,fieldSQSJ,fieldzgzjzdzs,fieldzgzjzdzq,fieldJZDZC,fieldJBXXnj,fieldSTQKjtcyzdkssj,fieldSTQKfx,fieldSTQKfs,fieldYQJLjcdry,fieldCXXXjtfsdb,fieldCXXXcxzt,fieldYQJLjcddshi,fieldCXXXjtjtzz,fieldCXXXsftjhbs,fieldHQRQ,fieldSTQKjtcyqtms,fieldCXXXksjcsj,fieldSTQKzdkssj,fieldSTQKfxx,fieldSTQKjtcyzysj,fieldjgshi,fieldSTQKjtcyxm,fieldJBXXsheng,fieldZJYCHSJCYXJGRQzd,fieldJBXXdrsfwc,fieldqjymsjtqk,fieldJBXXdw,fieldCXXXjcdr,fieldCXXXsftjhbjtdz,fieldJCDDq,fieldSFJZYM,fieldSTQKjtcyclfs,fieldSTQKxm,fieldCXXXjtgjbc,fieldSTQKjtcygldd,fieldzgzjzdzshi,fieldSTQKjtcyzdjgmcc,fieldSTQKzd,fieldSTQKqt,fieldCXXXlksj,fieldSTQKjtcyfrsj,fieldCXXXjtfsqtms,fieldSTQKjtcyzdmc,fieldCXXXjtfsfj,fieldJBXXfdy,fieldSTQKjtcyjmy,fieldJBXXxm,fieldJKMjt,fieldSTQKzljgmc,fieldCXXXzhycjcsj,fieldCXXXsftjhbq,fieldSTQKqtms,fieldYCFDY,fieldJBXXxb,fieldSTQKglkssj,fieldCXXXjtfspc,fieldSTQKbrstzk1,fieldYCBJ,fieldCXXXssh,fieldSTQKzysj,fieldLYYZM,fieldJBXXgh,fieldCNS,fieldCXXXfxxq,fieldSTQKclfs,fieldSTQKqtqksm,fieldCXXXqjymsxgqk,fieldYCBZ,fieldSTQKjmy,fieldSTQKjtcyxjwjjt,fieldJBXXxnjzbgdz,fieldSTQKjtcyfl,fieldSTQKjtcyzdjgmc,fieldCXXXddsj,fieldSTQKfrsj,fieldSTQKgldd,fieldCXXXfxcfsj,fieldJBXXbj,fieldSTQKjtcyfxx,fieldSTQKks,fieldJBXXcsny,fieldCXXXjtzzq,fieldJBXXJG,fieldCXXXdqszd,fieldCXXXjtzzs,fieldJBXXshi,fieldSTQKjtcyfrtw,fieldSTQKjtcystzk1,fieldCXXXjcdqk,fieldSTQKzdmc,fieldSFJZYMyczd,fieldSTQKjtcyks,fieldSTQKjtcystzk,fieldCXXXjtfshc,fieldYMTGSzdqt,fieldCXXXcqwdq,fieldSTQKxjwjjt,fieldSTQKjtcypcsj,fieldJBXXqu,fieldSTQKlt,fieldYMJZRQzd,fieldJBXXjgshi,fieldYQJLjcddq,fieldYQJLjcdryjkqk,fieldYQJLjcdds,fieldSTQKjtcyhxkn,fieldCXXXjtzz,fieldJBXXjgq,fieldCXXXjtfsqt,fieldJBXXjgs,fieldSTQKjtcylt,fieldSTQKzdjgmcc,fieldJBXXqjtxxqk,fieldDQSJ,fieldSTQKjtcyglfs',
+        'csrfToken': before_form['csrfToken'],
+        'lang': 'zh'
+    }
+
+    return form, end_form

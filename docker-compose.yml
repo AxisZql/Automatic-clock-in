@@ -1,0 +1,17 @@
+version: '3'
+services:
+  gzhudk:
+    build: .
+    container_name: gzhu_dk
+    ports:
+      - "8100:8090"
+    volumes:
+      - ../autodk:/gzhu
+      - ./tmp/logs:/tmp
+    environment:
+      - PYTHONUNBUFFERED=1
+      - TZ=Asia/Shanghai
+    command: /bin/bash -c "service cron start && python3 manage.py crontab add  && gunicorn autodk.wsgi:application -c gunicorn.conf" #执行启动脚本
+    restart: always
+    privileged: true
+
