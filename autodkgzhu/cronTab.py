@@ -22,10 +22,6 @@ logger = logging.getLogger('django')
 def crontab():
     a = str(datetime.datetime.now())
     logger.info("当前时间：{}".format(a))
-    a = a.split(' ')[1].split(':')
-    h = int(a[0])
-    if h != 7 and h != 6:
-        return
     user_list = User.objects.all()
     for user in user_list:
         logger.info(datetime.datetime.now())

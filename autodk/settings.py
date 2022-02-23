@@ -109,7 +109,7 @@ USE_I18N = True
 
 USE_L10N = True
 
-USE_TZ = True
+USE_TZ = False
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/3.2/howto/static-files/
@@ -217,7 +217,8 @@ LOGGING = {
 
 logpath = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/logs/cronlog.log'
 logpath2 = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) + '/log/cronlog2.log'
+# 由于容器中时间和现实时间差8个小时所以一下设定表示：8点05分和16点45会分别自动打一次卡
 CRONJOBS = [
-    ('*/50 * * * *', 'autodkgzhu.cronTab.crontab', '>>' + logpath + " 2>&1")
-
+    ('5 0 * * *', 'django.core.management.call_command', ['auto_dk'],{},'>> '+logpath),
+    ('45 8 * * *', 'django.core.management.call_command', ['auto_dk'],{},'>> '+logpath)
 ]
